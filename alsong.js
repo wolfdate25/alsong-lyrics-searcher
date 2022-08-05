@@ -1,9 +1,11 @@
-﻿export function getConfig(cfg)
+export function getConfig(cfg)
 {
     cfg.name = "alsong";
     cfg.version = "0.1";
     cfg.author = "wolfwork";
 }
+
+const encData = '8582df6473c019a3186a2974aa1e034ae1b2bbb2e7c99575aadc475fcddd997d74bbc1ce3d50b9900282903ee9eb60ae8c5bbf27484441bacb41ecf9128402696641655ff38c2cbbf3c81396034a883af2d82e0545ec32170bddc7c141208e7255e367e5b5ebd81750226856f5405ec3ad7b6f8600c32c2718c4c525bfe34666'
 
 /* 
 트랙 메타 정보
@@ -49,17 +51,39 @@ properties:
 };
 */
 
+// var IsAborting = false
+
 export function getLyrics(meta, man)
 {
     evalLib("querystring/querystring.min.js");
+	evalLib("quickjs-require/require.min.js");
 	
-	getAlsongLyrics(meta)
+	var lyrics = getLyricsUsingMeta(meta);
+	if(lyrics.length != 0) {
+		console.log("Found Alsong Lyrics : " + lyrics.length)
+	} else { // 해시로 검사
+	}
 
-    
+	let lyricMeta = man.createLyric();
+	for (var lyric in lyrics) {
+		if(IsAborting()) {
+			console.log("User Aborting");
+			break;
+		}
+		lyricMeta.title = lyric.Title;
+		lyricMeta.artist = lyric.Artist;
+		lyricMeta.album = lyric.Album;
+		lyricMeta.lyricText = lyric.Lyric;
+		man.addLyric(lyric_meta);
+	}
+}
+
+function escapeHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\"/g, "&quot;");
 }
 
 // meta 정보로 알송 가사들을 찾는 함수
-function getAlsongLyrics(meta) {
+function getLyricsUsingMeta(meta) {
 	let title = meta.title
 	let artist = meta.artist
 	
@@ -71,12 +95,17 @@ function getAlsongLyrics(meta) {
         <ns1:nCurPage>0</ns1:nCurPage>\
         </ns1:stQuery></ns1:GetResembleLyric2>";
 	
-	
+	AlsongServerRequest('GetResembleLyric2',content);
 }
 
-function GetResembleLyricsParser(result){
+function GetResembleLyricsParser(xml){
 	var lyrics = [];
-	var xmlParser = new XMLParser(result);
+	var parser =  new parser()
+	var temp = parser.parse(xml)
+	console.log(temp)
+	// var title = content.getNextSibling()
+	// console.log(title)
+/* 	var xmlParser = new XMLParser(result);
 	var resultNodes = xmlParser["GetResembleLyric2Result"];
 	if(resultNodes && resultNodes.length != 0){
 		resultNodes = resultNodes["ST_GET_RESEMBLELYRIC2_RETURN"];
@@ -93,27 +122,29 @@ function GetResembleLyricsParser(result){
 				Lyric : lyric["strLyric"].replace(/<br>/g,'\r\n').replace(/ /g,' ')
 			});
 		}
-	}
-	return lyrics;
+	}*/
+	return lyrics; 
 }
 
 function AlsongServerRequest(action,req){
-        var content = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:SOAP-ENC=\"http://www.w3.org/2003/05/soap-encoding\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:ns2=\"ALSongWebServer/Service1Soap\" xmlns:ns1=\"ALSongWebServer\" xmlns:ns3=\"ALSongWebServer/Service1Soap12\"><SOAP-ENV:Body>"+req+"</SOAP-ENV:Body></SOAP-ENV:Envelope>";
-        client.addHttpHeader("Accept-Charset","utf-8");
-        client.addHttpHeader("content-type","application/soap+xml; charset=UTF-8");
-        client.addHttpHeader("User-Agent","gSOAP/2.7");
-        client.addHttpHeader("SOAPAction","AlsongWebServer/"+action);
-        client.addPostData(content);
-        request("http://lyrics.alsong.co.kr/alsongwebservice/service1.asmx", (err, res, body) => {
-        if (!err && res.statusCode == 200) {
-            return body
-        }
-    });
-		var ret = client.Request("http://lyrics.alsong.co.kr/alsongwebservice/service1.asmx","POST");
-        client.Reset();
-        return ret;
-    }
+	var content = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:SOAP-ENC=\"http://www.w3.org/2003/05/soap-encoding\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:ns2=\"ALSongWebServer/Service1Soap\" xmlns:ns1=\"ALSongWebServer\" xmlns:ns3=\"ALSongWebServer/Service1Soap12\"><SOAP-ENV:Body>"+req+"</SOAP-ENV:Body></SOAP-ENV:Envelope>";
 
-function checkUserAbort(man) {
-	return man.checkAbort()
+	var header = {
+		"Accept-Charset": "utf-8",
+		"Content-Type": "application/soap+xml; charset=UTF-8",
+		"User-Agent": "gSOAP/2.7",
+		"SOAPAction": "AlsongWebServer/"+action
+	}
+	var settings = {
+		method: "post",
+		url: "http://lyrics.alsong.co.kr/alsongwebservice/service1.asmx",
+		headers: header,
+		body: content
+	}
+	console.log("request start")
+	request(settings, (err,res,body) => {
+		if (!err && res.statusCode == 200) {
+			GetResembleLyricsParser(body);
+		}
+	}); 
 }
