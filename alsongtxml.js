@@ -1,7 +1,7 @@
 ﻿export function getConfig(cfg)
 {
-    cfg.name = "alsong";
-    cfg.version = "0.3";
+    cfg.name = "alsong2";
+    cfg.version = "0.2";
     cfg.author = "wolfwork";
 }
 
@@ -100,24 +100,22 @@ function makeRequest(meta,action) {
 function GetResembleLyricsParser(xml){
 	var lyrics = [];
 	// 파싱해야되는 부분
-	var rawData = mxml.loadString(xml, mxml.MXML_OPAQUE_CALLBACK)
-	var lyricsData = rawData.findElement('ST_GET_RESEMBLELYRIC2_RETURN')
-	// console.log(lyricsData.findPath('strLyric').getOpaque().replace(/<br>/g,'\r\n'))
-	while (true) {
-		if (!lyricsData) {
-			// console.log('루프 중지')
-			break;
-		}
-		lyrics.push({
-			 title: lyricsData.findPath('strTitle').getOpaque(),
-			 artist: lyricsData.findPath('strArtistName').getOpaque(),
-			 album: lyricsData.findPath('strAlbumName').getOpaque(),
-			 lyric: lyricsData.findPath('strLyric').getOpaque().replace(/<br>/g,'\r\n')
-		});
-		var lyricsData = lyricsData.getNextSibling()
+	var rawdata = txml.parse(xml)
+	var json = txml.simplify(rawdata)
+	// console.log(JSON.stringify(json))
+	var lyricList = json['soap:Envelope']['soap:Body']['GetResembleLyric2Response']['GetResembleLyric2Result']['ST_GET_RESEMBLELYRIC2_RETURN']
+	if (lyricList && lyricList.length != 0) {
+		console.log('검색된 가사: ' + lyricList.length + '개')
+		for (const data of lyricList) {
+			lyrics.push({
+				 title: data['strTitle'],
+				 artist: data['strArtistName'],
+				 album: data['strAlbumName'],
+				 lyric: data['strLyric'].replace(/<br>/g,'\r\n').replace(/ /g,' ')
+			})
 			// console.log(JSON.stringify(lyrics))
+		}
 	}
-	console.log('검색된 가사: ' + lyrics.length + '개')
 	return lyrics
 }
 
@@ -127,22 +125,22 @@ function addLyricsUsingMeta(meta, man){
 	request(contents, (err,res,body) => {
 		if (!err && res.statusCode == 200) {
 			console.log('요청 수신 완료')
-			// try {
-			var lyrics = GetResembleLyricsParser(body);
-			var lyricMeta = man.createLyric()
-			for (const lyric of lyrics) {
-				if(man.checkAbort()) {
-					console.log("User Aborting");
-					break;
+			try {
+				var lyrics = GetResembleLyricsParser(body);
+				var lyricMeta = man.createLyric()
+				for (const lyric of lyrics) {
+					if(man.checkAbort()) {
+						console.log("User Aborting");
+						break;
+					}
+					lyricMeta.title = lyric.title;
+					lyricMeta.artist = lyric.artist;
+					lyricMeta.album = lyric.album;
+					lyricMeta.lyricText = lyric.lyric;
+					man.addLyric(lyricMeta);
 				}
-				lyricMeta.title = lyric.title;
-				lyricMeta.artist = lyric.artist;
-				lyricMeta.album = lyric.album;
-				lyricMeta.lyricText = lyric.lyric;
-				man.addLyric(lyricMeta);
+			} catch {
 			}
-			// } catch {
-			// }
 		}
 	}); 
 }
