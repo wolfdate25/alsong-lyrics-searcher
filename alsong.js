@@ -56,7 +56,7 @@ properties:
 export function getLyrics(meta, man)
 {
     evalLib("querystring/querystring.min.js");
-	evalLib("txml/txml.min.js");
+	// evalLib("txml/txml.min.js");
 	
 	console.log("노래 제목 : " + meta.title + ", 노래 아티스트 : " + meta.artist)
 	addLyricsUsingMeta(meta,man);
