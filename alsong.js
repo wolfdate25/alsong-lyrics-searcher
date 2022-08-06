@@ -1,4 +1,4 @@
-export function getConfig(cfg)
+﻿export function getConfig(cfg)
 {
     cfg.name = "alsong";
     cfg.version = "0.1";
@@ -56,26 +56,10 @@ properties:
 export function getLyrics(meta, man)
 {
     evalLib("querystring/querystring.min.js");
-	evalLib("quickjs-require/require.min.js");
+	evalLib("txml/txml.min.js");
 	
-	var lyrics = getLyricsUsingMeta(meta);
-	if(lyrics.length != 0) {
-		console.log("Found Alsong Lyrics : " + lyrics.length)
-	} else { // 해시로 검사
-	}
-
-	let lyricMeta = man.createLyric();
-	for (var lyric in lyrics) {
-		if(IsAborting()) {
-			console.log("User Aborting");
-			break;
-		}
-		lyricMeta.title = lyric.Title;
-		lyricMeta.artist = lyric.Artist;
-		lyricMeta.album = lyric.Album;
-		lyricMeta.lyricText = lyric.Lyric;
-		man.addLyric(lyric_meta);
-	}
+	console.log("노래 제목 : " + meta.title + ", 노래 아티스트 : " + meta.artist)
+	addLyricsUsingMeta(meta,man);
 }
 
 function escapeHtml(s) {
@@ -83,11 +67,11 @@ function escapeHtml(s) {
 }
 
 // meta 정보로 알송 가사들을 찾는 함수
-function getLyricsUsingMeta(meta) {
+function makeRequest(meta,action) {
 	let title = meta.title
 	let artist = meta.artist
 	
-	var content ="<ns1:GetResembleLyric2>\
+	var req ="<ns1:GetResembleLyric2>\
         <ns1:encData>"+encData+"</ns1:encData>\
         <ns1:stQuery>\
         <ns1:strTitle>"+escapeHtml(title)+"</ns1:strTitle>\
@@ -95,38 +79,7 @@ function getLyricsUsingMeta(meta) {
         <ns1:nCurPage>0</ns1:nCurPage>\
         </ns1:stQuery></ns1:GetResembleLyric2>";
 	
-	AlsongServerRequest('GetResembleLyric2',content);
-}
-
-function GetResembleLyricsParser(xml){
-	var lyrics = [];
-	var parser =  new parser()
-	var temp = parser.parse(xml)
-	console.log(temp)
-	// var title = content.getNextSibling()
-	// console.log(title)
-/* 	var xmlParser = new XMLParser(result);
-	var resultNodes = xmlParser["GetResembleLyric2Result"];
-	if(resultNodes && resultNodes.length != 0){
-		resultNodes = resultNodes["ST_GET_RESEMBLELYRIC2_RETURN"];
-		for(var key in resultNodes){
-			if(IsAborting()){
-				break;
-			}
-			var lyric = resultNodes[key];
-			lyrics.push({
-				Source: "MetaData",
-				Title : lyric["strTitle"],
-				Artist : lyric["strArtistName"],
-				Album : lyric["strAlbumName"],
-				Lyric : lyric["strLyric"].replace(/<br>/g,'\r\n').replace(/ /g,' ')
-			});
-		}
-	}*/
-	return lyrics; 
-}
-
-function AlsongServerRequest(action,req){
+	
 	var content = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:SOAP-ENC=\"http://www.w3.org/2003/05/soap-encoding\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:ns2=\"ALSongWebServer/Service1Soap\" xmlns:ns1=\"ALSongWebServer\" xmlns:ns3=\"ALSongWebServer/Service1Soap12\"><SOAP-ENV:Body>"+req+"</SOAP-ENV:Body></SOAP-ENV:Envelope>";
 
 	var header = {
@@ -135,16 +88,58 @@ function AlsongServerRequest(action,req){
 		"User-Agent": "gSOAP/2.7",
 		"SOAPAction": "AlsongWebServer/"+action
 	}
-	var settings = {
+	var contents = {
 		method: "post",
 		url: "http://lyrics.alsong.co.kr/alsongwebservice/service1.asmx",
 		headers: header,
 		body: content
 	}
-	console.log("request start")
-	request(settings, (err,res,body) => {
+	return contents
+}
+
+function GetResembleLyricsParser(xml){
+	var lyrics = [];
+	// 파싱해야되는 부분
+	var rawdata = txml.parse(xml)
+	var json = txml.simplify(rawdata)
+	// console.log(JSON.stringify(json))
+	var lyricList = json['soap:Envelope']['soap:Body']['GetResembleLyric2Response']['GetResembleLyric2Result']['ST_GET_RESEMBLELYRIC2_RETURN']
+	if (lyricList && lyricList.length != 0) {
+		console.log('검색된 가사: ' + lyricList.length + '개')
+		for (const data of lyricList) {
+			lyrics.push({
+				 title: data['strTitle'],
+				 artist: data['strRegisterFirstName'],
+				 album: data['strAlbumName'],
+				 lyric: data['strLyric'].replace(/br/g,'\r\n').replace(/ /g,' ').replace(/&lt;/g,'').replace(/&gt;/g,'')
+			})
+			console.log(data['strLyric'].replace(/br/g,'\r\n').replace(/ /g,' ').replace(/&lt;/g,'').replace(/&gt;/g,''))
+			break
+			// console.log(JSON.stringify(lyrics))
+		}
+	}
+	return lyrics
+}
+
+function addLyricsUsingMeta(meta, man){
+	var contents = makeRequest(meta, 'GetResembleLyric2')
+	console.log("요청 시작")
+	request(contents, (err,res,body) => {
 		if (!err && res.statusCode == 200) {
-			GetResembleLyricsParser(body);
+			console.log('요청 수신 완료')
+			var lyrics = GetResembleLyricsParser(body);
+			var lyricMeta = man.createLyric()
+			for (const lyric of lyrics) {
+				if(man.checkAbort()) {
+					console.log("User Aborting");
+					break;
+				}
+				lyricMeta.title = lyric.title;
+				lyricMeta.artist = lyric.artist;
+				lyricMeta.album = lyric.album;
+				lyricMeta.lyricText = lyric.lyric;
+				man.addLyric(lyricMeta);
+			}
 		}
 	}); 
 }
