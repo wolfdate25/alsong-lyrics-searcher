@@ -109,12 +109,10 @@ function GetResembleLyricsParser(xml){
 		for (const data of lyricList) {
 			lyrics.push({
 				 title: data['strTitle'],
-				 artist: data['strRegisterFirstName'],
+				 artist: data['strArtistName'],
 				 album: data['strAlbumName'],
 				 lyric: data['strLyric'].replace(/br/g,'\r\n').replace(/ /g,' ').replace(/&lt;/g,'').replace(/&gt;/g,'')
 			})
-			console.log(data['strLyric'].replace(/br/g,'\r\n').replace(/ /g,' ').replace(/&lt;/g,'').replace(/&gt;/g,''))
-			break
 			// console.log(JSON.stringify(lyrics))
 		}
 	}
